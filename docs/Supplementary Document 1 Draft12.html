@@ -1,0 +1,457 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supplementary Document 1</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__html"><h2 id="multi-omics-responses-in-tree-swallow-tachycineta-bicolor-nestlings-from-the-maumee-area-of-concern-maumee-river-ohio"><strong>Multi-omics responses in tree swallow (<em>Tachycineta bicolor</em>) nestlings from the Maumee Area of Concern, Maumee River, Ohio</strong></h2>
+<p>Chi Yen Tseng<sup>1</sup>, Christine M. Custer<sup>2</sup>, Thomas W. Custer<sup>2</sup>, Paul M. Dummer<sup>2</sup>, Natalie Karouna‐Renier<sup>3</sup> and Cole W. Matson<sup>1</sup></p>
+<p><sup>1</sup>Department of Environmental Science, The Institute of Ecological, Earth, and Environmental Sciences (TIE3S), and the Center for Reservoir and Aquatic Systems Research (CRASR), Baylor University, Waco, Texas 76798, United States</p>
+<p><sup>2</sup>Upper Midwest Environmental Sciences Center, U.S. Geological Survey, La Crosse, Wisconsin 54603, United States</p>
+<p><sup>3</sup>U.S. Geological Survey, Eastern Ecological Science Center (EESC) at Patuxent, Beltsville, Maryland 20705, United States</p>
+<p>Corresponding author: Cole W. Matson <a href="mailto:cole_matson@baylor.edu">cole_matson@baylor.edu</a></p>
+<p>Any use of trade, product, or firm names is for descriptive purposes only and does not imply endorsement by the U.S. Government.</p>
+<h1 id="supplementary-document-1">Supplementary document 1</h1>
+<h2 id="rna-seq-data-processing">RNA-Seq data processing</h2>
+<h3 id="trimming">Trimming</h3>
+<ul>
+<li>150-bp  paired end reads, &gt; 35 million reads per individual, were trimmed using Trimmomatic version 0.36 with a minimum phred 33, trimming parameter is aiming toward more lenient.  <code>trimmomatic-0.36.jar PE -phred33 {}_R1_001.fastq.gz {}_R2_001.fastq.gz {}_R1_qc.fq.gz {}_S1_fq.gz {}_R2_qc.fq.gz *_S2_fq.gz ILLUMINACLIP:TruSeqPE.fa:2:15:8:2 LEADING:5 TRAILING:5 SLIDINGWINDOW:4:15 MINLEN:36</code></li>
+<li>fastqc v0.11.5 was used to check reads quality before and after trimming</li>
+</ul>
+<h3 id="reads-alignment-to-genome">Reads alignment to genome</h3>
+<p>Star v2.6.1a<br>
+First generate contig index</p>
+<pre><code>STAR --runThreadN 8 \	
+--runMode genomeGenerate \
+--genomeDir Renamed_tswallow_contig_index \
+--genomeFastaFiles Renamed_tswallow_contig.fasta
+</code></pre>
+<p>Then run Star alignment</p>
+<pre><code>STAR --genomeDir Renamed_tswallow_contig_index \
+--runThreadN 8 \
+--readFilesCommand zcat \
+--readFilesIn {}_R1_qc.fq.gz {}_R2_qc.fq.gz \
+--outFileNamePrefix {}_ \
+--outTmpDir {}_temp \
+--alignIntronMin 10 \
+--alignIntronMax 250000 \
+--alignMatesGapMax 250000 \
+--outSAMtype BAM SortedByCoordinate \
+--outSAMunmapped Within \
+--outSAMattributes Standard
+</code></pre>
+<p>Counts per gene were estimated using subread_-1.6.5-/featureCounts with parameter designed for  paired-end and stranded estimation</p>
+<pre><code>featureCounts -T 8 -p -s 2 -t gene -a Tbic_Run3_2.renamed.putative_function.gff -o ts_16.featureCounts -g ID ts_16/*.bam
+</code></pre>
+<h3 id="tree-swallow-genome-assembly">Tree Swallow Genome assembly</h3>
+<h3 id="x-chromium-genome---supernova-2.1.1">1. 10x Chromium Genome - supernova-2.1.1</h3>
+<ul>
+<li><a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/ts_assembly.sh">supernova run</a> - produces the assembly graph</li>
+<li><a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/mkoutput_supernova.sh">supernova mkoutput</a> - produces fasta files of assemblies. I used pseudohap2 output mode<br>
+Run <a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/proc10xG.sh">proc10xG</a> to extract gem barcode, trim primer, <a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/map_barcodes.sh">map</a> barcode to white list</li>
+</ul>
+<blockquote>
+<p>PROCESS BARCODE MATCH: 383244671 (93.90%) PROCESS BARCODE MISMATCH1: 2524728 (0.62%) PROCESS BARCODE AMBIGUOUS: 5288877 (1.30%) PROCESS BARCODE UNKNOWN: 17102415 (4.19%)</p>
+</blockquote>
+<h3 id="scaffolding---tigmint---ark">2. Scaffolding - Tigmint - Ark</h3>
+<ul>
+<li>
+<p>Run ARK+LINKS pipeline<br>
+Input files</p>
+<ul>
+<li>
+<p>draft assembly from supernova corrected by misassembly corrector Tigmint and generate <a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/tigmint_test2"><em>supernova_hap1.tigmint.fa</em></a>. The command tigmint-molecule groups linked reads with the same barcode into molecules. The command tigmint-cut identifies regions of the assembly that are not well supported by the linked reads, and cuts the contigs of the draft assembly at these positions. Tigmint may optionally scaffold the genome using ARCS.</p>
+</li>
+<li>
+<p><em>barcoded_reads.fq.gz</em> :  barcode multiplicities generated from <a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/fastqbasic.sh">fastqbasic.sh</a> <code>longranger basic</code></p>
+</li>
+</ul>
+<p>Running the <a href="https://github.com/chiyenTS/Tswallow_genome_assembly/blob/master/arklinks_tigmint_0.sh">arks makefile</a> with default parameters (except specify 16 threads, -j 0.5 for ARKS)</p>
+</li>
+</ul>
+<h3 id="genome-annotation-using-maker">3. Genome annotation using Maker</h3>
+<p>scripts are adapted from <a href="https://bioinformaticsworkbook.org/dataAnalysis/GenomeAnnotation/Intro_To_Maker.html#gsc.tab=0">Introduction to Maker</a> and <a href="http://weatherby.genetics.utah.edu/MAKER/wiki/index.php/MAKER_Tutorial_for_WGS_Assembly_and_Annotation_Winter_School_2018">MAKER Tutorial for WGS Assembly and Annotation Winter School 2018</a><br>
+<strong>Step 0</strong>, prepare all the input files including</p>
+<ol>
+<li>192 trimmed RNA-Seq files from Tree Swallow individuals were combined into left.fq and  right.fq and  run <em>de novo</em> assembly using Trinity v2.6.6.<br>
+<code>Trinity --max_memory 200G --seqType fq --left $left --right $right --CPU 16 --full_cleanup --output trinity_out_dir</code><br>
+output: Trinity.fasta<br>
+Raname trinity.fasta into Renamed_transcriptome_combined.fa by removing SPECIAL CHARACTERS IN YOUR SCAFFOLD NAMES<br>
+<code>less $WORKDIR/trinity.fasta |sed 's/;/\t/1'|awk '{print $1}' &gt;Renamednematode_sp._22Aug2017_DZkUC.fasta</code></li>
+<li>Run Repeat_Library_Construction.sh <em>de novo</em> repeat Identification – build repeat library using <code>RepeatModeler</code><pre><code>module load repeatmodeler/1.0.10
+BuildDatabase -name tswallow0db -engine ncbi tswallow.contig.fa
+nohup RepeatModeler -database tswallow0db &gt;&amp; tswallow.out
+</code></pre>
+</li>
+<li>protein sequences associated with Tree Swallow: combine all the following species into ave_proteome.fasta from <a href="https://www.uniprot.org/proteomes/?query=aves&amp;sort=score">uniprot</a>, including <code>UP000001645_9103,UP000016665_59894,UP000007754_59729,UP000000539_9031,UP000016666_8839,UP000053258_328815,UP000053875_118200,UP000053641_94827,UP000051836_12930,UP000054308_9244,UP000053858_50402,UP000053760_55661,UP000053584_441894,UP000053283_128390,UP000053872_8932,UP000198419_9014,UP000198323_9009,UP000190648_372326,UP000053286_9233,UP000053605_30419,UP000197619_299123,UP000053119_188379,UP000052976_85066,UP000054081_9238,UP000269221_333673</code>.</li>
+</ol>
+<p><strong>Step 1</strong>.  start and edit maker ctrl files <code>maker -CTL</code><br>
+make sure all the paths in <code>maker_as_exe.ctl</code> are correct. Check blastn, blastx, tblastx, repeatmasker, exonerate, snap, augustus (for gene modeling, I only run snap and augustus). And left default for maker_bopts.ctl</p>
+<p>Run Maker step 1 to determine repeat region and predict genes from aligned EST (assembled transcriptome) and get <em>repeats.gff</em>, <em>est2genome.gff</em> , <em>protein2genome.gff</em></p>
+<pre><code>#!/bin/bash
+#PBS -k oe
+#PBS -m abe
+#PBS -M chi-yen_tseng@baylor.edu
+#PBS -N Run_Maker
+#PBS -l nodes=8:ppn=12,vmem=100gb,walltime=2:00:00:00
+
+module load maker/2.31.9
+module load openmpi/intel/2.1.0
+MAKERDIR="TswallowMaker2"
+
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir
+mpiexec  -n 96 maker -base ${MAKERDIR} -fix_nucleotides
+#rm ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+maker -base ${MAKERDIR} -fix_nucleotides -dsindex
+gff3_merge  -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+fasta_merge -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+</code></pre>
+<p>Using the following <code>maker_opts.ctl</code> (only list changed portion)</p>
+<pre><code>#-----Genome (these are always required)
+genome=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/Renamed_tswallow_contig.fasta #genome sequence (fasta file or fasta embeded in GFF3 file)
+organism_type=eukaryotic #eukaryotic or prokaryotic. Default is eukaryotic
+
+#-----EST Evidence (for best results provide a file for at least one)
+est=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/Renamed_transcriptome_combined.fa #set of ESTs or assembled mRNA-seq in fasta format
+altest= #EST/cDNA sequence file in fasta format from an alternate organism
+est_gff= #aligned ESTs or mRNA-seq from an external GFF3 file
+altest_gff= #aligned ESTs from a closly relate species in GFF3 format
+
+#-----Protein Homology Evidence (for best results provide a file for at least one)
+protein=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/ave_proteome.fasta  #protein sequence file in fasta format (i.e. from mutiple oransisms)
+protein_gff= #aligned protein homology evidence from an external GFF3 file
+
+#-----Repeat Masking (leave values blank to skip repeat masking)
+model_org=all #select a model organism for RepBase masking in RepeatMasker
+rmlib= /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/consensi.fa.classified #provide an organism specific repeat library in fasta format for RepeatMasker
+repeat_protein=/gpfs/hps/soft/rhel7/maker/2.31.9/data/te_proteins.fasta #provide a fasta file of transposable element proteins for RepeatRunner
+rm_gff= #pre-identified repeat elements from an external GFF3 file
+prok_rm=0 #forces MAKER to repeatmask prokaryotes (no reason to change this), 1 = yes, 0 = no
+softmask=1 #use soft-masking rather than hard-masking in BLAST (i.e. seg and dust filtering)
+
+#-----Gene Prediction
+snaphmm= #SNAP HMM file
+gmhmm= #GeneMark HMM file
+augustus_species= #Augustus gene prediction species model
+fgenesh_par_file= #FGENESH parameter file
+pred_gff= #ab-initio predictions from an external GFF3 file
+model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
+est2genome=1 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
+protein2genome=1 #infer predictions from protein homology, 1 = yes, 0 = no
+trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
+snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
+unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+~~~
+#-----MAKER Behavior Options
+alt_splice=1 #Take extra steps to try and find alternative splicing, 1 = yes, 0 = no
+</code></pre>
+<p><strong>Step 2</strong> Round2 maker using previous aligned GFF files and run through SNAP predict model<br>
+Build SNAP training moedl</p>
+<pre><code>#!/bin/bash
+#PBS -q debug
+#PBS -k oe
+#PBS -m abe
+#PBS -M chi-yen_tseng@baylor.edu
+#PBS -N Retrain_SNAP
+#PBS -l nodes=1:ppn=16,vmem=64gb,walltime=00:59:00
+
+module load maker
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/SNAP_training_workdir2
+maker2zff TswallowMaker2.all.gff ## gff from aligned EST and close species proteins 
+fathom -categorize 1000 genome.ann2 genome.dna
+fathom -export 1000 -plus uni.ann uni.dna
+forge export.ann export.dna
+hmm-assembler.pl TswallowMaker2 . &gt; TswallowMaker2_2.hmm
+</code></pre>
+<p>Run maker gene prediction using SNAP training model</p>
+<pre><code>#!/bin/bash
+#PBS -k oe
+#PBS -m abe
+#PBS -o /N/dc2/projects/Tswallow_GLRP/CT/scripts/error_output
+#PBS -e /N/dc2/projects/Tswallow_GLRP/CT/scripts/error_output
+#PBS -M chi-yen_tseng@baylor.edu
+#PBS -N Run_Maker_Run2_SET3
+#PBS -l nodes=8:ppn=12,vmem=96gb,walltime=1:00:00:00
+
+##Run_Maker_Run2_SET3 
+##SNAP predictor: SNAP (1st training) predictor database N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/SNAP_training_workdir2/TswallowMaker2_2.hm
+module load maker/2.31.9
+module load openmpi/intel/2.1.0
+##export AUGUSTUS_CONFIG_PATH=/N/u/tsengch/Carbonate/.augustus_config_CT
+
+MAKERDIR="TswallowmakerRun_SET3_Run2"
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run2
+maker -CTL
+mv maker_opts.SET3_Run2 maker_opts.ctl
+mpiexec  -n 96 maker -base ${MAKERDIR} -fix_nucleotides
+#rm ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+maker -base ${MAKERDIR} -fix_nucleotides -dsindex
+gff3_merge  -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+fasta_merge -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+</code></pre>
+<p>Using the following maker_opts.ctl</p>
+<pre><code>#-----Genome (these are always required)
+genome=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/Renamed_tswallow_contig.fasta #genome sequence (fasta file or fasta embeded in GFF3 file)
+organism_type=eukaryotic #eukaryotic or prokaryotic. Default is eukaryotic
+
+#-----Re-annotation Using MAKER Derived GFF3
+maker_gff= #MAKER derived GFF3 file
+est_pass=0 #use ESTs in maker_gff: 1 = yes, 0 = no
+altest_pass=0 #use alternate organism ESTs in maker_gff: 1 = yes, 0 = no
+protein_pass=0 #use protein alignments in maker_gff: 1 = yes, 0 = no
+rm_pass=0 #use repeats in maker_gff: 1 = yes, 0 = no
+model_pass=0 #use gene models in maker_gff: 1 = yes, 0 = no
+pred_pass=0 #use ab-initio predictions in maker_gff: 1 = yes, 0 = no
+other_pass=0 #passthrough anyything else in maker_gff: 1 = yes, 0 = no
+
+#-----EST Evidence (for best results provide a file for at least one)
+est=##/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/Renamed_transcriptome_combined.fa #set of ESTs or assembled mRNA-seq in fasta format
+altest= #EST/cDNA sequence file in fasta format from an alternate organism
+est_gff=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/TswallowMaker2.maker.output.Run1/TswallowMaker2.all.est2genome.gff #aligned ESTs or mRNA-seq from an external GFF3 file
+altest_gff= #aligned ESTs from a closly relate species in GFF3 format
+
+#-----Protein Homology Evidence (for best results provide a file for at least one)
+protein=#/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/ave_proteome.fasta  #protein sequence file in fasta format (i.e. from mutiple oransisms)
+protein_gff=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/TswallowMaker2.maker.output.Run1/TswallowMaker2.all.protein2genome.gff  #aligned protein homology evidence from an external GFF3 file
+
+#-----Repeat Masking (leave values blank to skip repeat masking)
+model_org=all #select a model organism for RepBase masking in RepeatMasker
+rmlib= #/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/consensi.fa.classified #provide an organism specific repeat library in fasta format for RepeatMasker
+repeat_protein=/gpfs/hps/soft/rhel7/maker/2.31.9/data/te_proteins.fasta #provide a fasta file of transposable element proteins for RepeatRunner
+rm_gff=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/TswallowMaker2.maker.output.Run1/TswallowMaker2.all.repeats.gff #pre-identified repeat elements from an external GFF3 file
+prok_rm=0 #forces MAKER to repeatmask prokaryotes (no reason to change this), 1 = yes, 0 = no
+softmask=1 #use soft-masking rather than hard-masking in BLAST (i.e. seg and dust filtering)
+
+#-----Gene Prediction
+snaphmm=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/SNAP_training_workdir2/TswallowMaker2_2.hmm #SNAP HMM file
+gmhmm= #GeneMark HMM file
+augustus_species= #Augustus gene prediction species model
+fgenesh_par_file= #FGENESH parameter file
+pred_gff= #ab-initio predictions from an external GFF3 file
+model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
+est2genome=0 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
+protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
+trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
+snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
+unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+</code></pre>
+<p>Train SNAP model again</p>
+<pre><code>## SNAPTraining_nd.sh-second SNAP training
+module load maker
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run2
+mkdir SNAP2ndTraining
+cd SNAP2ndTraining
+ln -s /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run2/TswallowmakerRun_SET3_Run2.all.gff .
+maker2zff TswallowmakerRun_SET3_Run2.all.gff
+fathom -categorize 1000 genome.ann genome.dna
+fathom -export 1000 -plus uni.ann uni.dna
+forge export.ann export.dna
+hmm-assembler.pl TswallowmakerRun_SET3_Run2  . &gt; TswallowmakerRun_SET3_Run2.hmm
+</code></pre>
+<p>And using <em>TswallowmakerRun_SET3_Run2.hmm</em> for the following analysis</p>
+<p><strong>Step 3</strong> Predict gene model using augustus trainning model followed by another round of SNAP training<br>
+Using busco as training environment for Augustus, adapted from <a href="https://gist.github.com/darencard"><br>
+darencard</a>/<strong><a href="https://gist.github.com/darencard/bb1001ac1532dd4225b030cf0cd61ce2">maker_genome_annotation.md</a></strong></p>
+<pre><code>#!/bin/bash
+#PBS -k oe
+#PBS -m abe
+#PBS -M chi-yen_tseng@baylor.edu
+#PBS -N train_RunBUSCO
+#PBS -l nodes=1:ppn=16,vmem=64gb,walltime=2:00:00:00
+
+module load busco
+
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir
+ run_BUSCO.py -i TswallowMaker2.all.maker.transcripts1000.fasta -o TswallowMaker2_BUSCO_maker -l aves_odb9/ \
+  -m genome -c 8 --long -sp human -z --augustus_parameters='--progress=true
+</code></pre>
+<p>Run maker using AUGUSTUS</p>
+<pre><code>##makerRun3.1.sh - Run maker again with 2nd SNAP and BUSCO_Augustus_BUSCO_Tswallow_prediction_413945187 - Augustus (BUSCO chicken version)
+##SNAP predictor: SNAP-/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run2/SNAP2ndTraining/TswallowmakerRun_SET3_Run2.hmm (2nd training) 
+module load maker/2.31.9
+module load openmpi/intel/2.1.0
+export AUGUSTUS_CONFIG_PATH=/N/u/tsengch/Carbonate/.augustus_config_CT
+
+MAKERDIR="TswallowmakerRun_SET3_Run3"
+mkdir /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3
+maker -CTL
+mv ../maker_opts.ctl.SET3_Run3 maker_opts.ctl
+mpiexec  -n 96 maker -base ${MAKERDIR} -fix_nucleotides
+#rm ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+maker -base ${MAKERDIR} -fix_nucleotides -dsindex
+gff3_merge  -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+fasta_merge -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log\
+</code></pre>
+<p>using maker_opts.ctl like this</p>
+<pre><code>#-----Gene Prediction
+snaphmm=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run2/SNAP2ndTraining/TswallowmakerRun_SET3_Run2.hmm #SNAP HMM file
+gmhmm= #GeneMark HMM file
+augustus_species=BUSCO_Augustus_BUSCO_Tswallow_prediction_413945187 #Augustus gene prediction species model
+fgenesh_par_file= #FGENESH parameter file
+pred_gff= #ab-initio predictions from an external GFF3 file
+model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
+est2genome=0 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
+protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
+trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
+snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
+unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+</code></pre>
+<p>Finally run again SNAP training</p>
+<pre><code>`#makerRun3.2.sh
+## Run maker with 3rd SNAP and BUSCO_Augustus_BUSCO_Tswallow_prediction_413945187
+##makerRun3.2.sh - Run maker again with 3rd SNAP and BUSCO_Augustus_BUSCO_Tswallow_prediction_413945187 - Augustus (BUSCO chicken version)
+##SNAP predictor: SNAP-/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3/SNAP3rdTraining/TswallowmakerRun_SET3_Run3.hmm (3rd training) 
+module load maker/2.31.9
+module load openmpi/intel/2.1.0
+export AUGUSTUS_CONFIG_PATH=/N/u/tsengch/Carbonate/.augustus_config_CT
+
+MAKERDIR="TswallowmakerRun_SET3_Run3_2"
+mkdir /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3_2
+cd /N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3_2
+maker -CTL
+mv ../maker_opts.ctl.SET3_Run3_2 maker_opts.ctl 
+mpiexec  -n 96 maker -base ${MAKERDIR} -fix_nucleotides
+#rm ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+maker -base ${MAKERDIR} -fix_nucleotides -dsindex
+gff3_merge  -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+fasta_merge -d ${MAKERDIR}.maker.output/${MAKERDIR}_master_datastore_index.log
+
+</code></pre>
+<p>using maker_opts.ctl like this</p>
+<pre><code>#-----Gene Prediction
+snaphmm=/N/dc2/projects/Tswallow_GLRP/CT/Tswallow_annotation/maker_work_dir/maker_work_dir_SET3_Run3/SNAP3rdTraining/TswallowmakerRun_SET3_Run3.hmm #SNAP HMM file
+gmhmm= #GeneMark HMM file
+augustus_species=BUSCO_Augustus_BUSCO_Tswallow_prediction_413945187 #Augustus gene prediction species model
+fgenesh_par_file= #FGENESH parameter file
+pred_gff= #ab-initio predictions from an external GFF3 file
+model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
+est2genome=0 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
+protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
+trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
+snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
+unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+</code></pre>
+<p>Get <em>TswallowmakerRun_SET3_Run3_2.all.gff</em> as annotation end result</p>
+<p>blastp to determine gene id. I ran against chicken, barn swallow, and zebra finch and use primary chicken as ortholog id</p>
+<pre><code>#PBS -k oe
+#PBS -m abe
+#PBS -o chicken_blastp.o
+#PBS -e chicken_blastp.e
+#PBS -M chi-yen_tseng@baylor.edu
+#PBS -N chicken_blastp
+#PBS -l nodes=1:ppn=8,vmem=24gb,walltime=6:00:00
+
+module load blast/2.6.0+
+
+cd $PBS_O_WORKDIR
+## blastp against chicken proteome
+blastp -query TswallowmakerRun_SET3_Run3_2.all.maker.proteins.fasta -db blastdb/Gallus_gallus_prot -evalue 1e-6 -max_hsps 1 -max_target_seqs 1 -outfmt 6 -out output.G_gallus.blastp
+
+cp output.G_gallus.blastp /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation/output.G_gallus.renamed.blastp
+module load maker
+cd /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation
+map_data_ids Tbic_Run3_2.all.maker.name.map output.G_gallus.renamed.blastp
+
+</code></pre>
+<p>rename the annotation</p>
+<pre><code>module load maker
+## For cleanning and processing names
+# create naming table (there are additional options for naming beyond defaults) with eight digit identifier
+maker_map_ids --prefix TacBic --justify 8  TswallowmakerRun_SET3_Run3_2.all.gff &gt; Tbic_Run3_2.all.maker.name.map
+# replace names in GFF files
+cp TswallowmakerRun_SET3_Run3_2.all.gff Tbic_Run3_2.all.gff
+map_gff_ids Tbic_Run3_2.all.maker.name.map Tbic_Run3_2.all.gff
+# replace names in FASTA headers
+cp TswallowmakerRun_SET3_Run3_2.all.maker.transcripts.fasta Tbic_Run3_2.all.maker.transcripts.fasta
+cp TswallowmakerRun_SET3_Run3_2.all.maker.proteins.fasta Tbic_Run3_2.all.maker.proteins.fasta
+map_fasta_ids Tbic_Run3_2.all.maker.name.map Tbic_Run3_2.all.maker.transcripts.fasta
+map_fasta_ids Tbic_Run3_2.all.maker.name.map Tbic_Run3_2.all.maker.proteins.fasta
+# replace names in output of interproscan and blastp
+cp /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation/uniprot_interpro_dir/blastp_result/finaloutput /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation/output.renamed.blastp
+cp /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation/uniprot_interpro_dir/interproscan_result/output.iprscan /N/dc2/projects/Tswallow_GLRP/data/Tswallow_genome/Tswallow_annotation/output.renamed.iprscan
+map_data_ids Tbic_Run3_2.all.maker.name.map output.renamed.iprscan
+map_data_ids Tbic_Run3_2.all.maker.name.map output.renamed.blastp
+</code></pre>
+<h3 id="quality-check--quast-and-busco">4. Quality check- Quast and BUSCO</h3>
+<pre><code># BUSCO version is: 3.0.2
+# The lineage dataset is: aves_odb9 (Creation date: 2016-02-13, number of species: 40, number of BUSCOs: 4915)
+# To reproduce this run: python /N/soft/rhel7/busco/3.0.2/scripts/run_BUSCO.py -i TswallowmakerRun_SET3_Run3_2.fasta -o TswallowmakerRun_SET3_Run3_2_aves -l aves_odb9/ -m transcriptome -c 4
+#
+# Summarized benchmarking in BUSCO notation for file TswallowmakerRun_SET3_Run3_2.fasta
+# BUSCO was run in mode: transcriptome
+
+        C:85.5%[S:68.5%,D:17.0%],F:9.0%,M:5.5%,n:4915
+
+        4202    Complete BUSCOs (C)
+        3367    Complete and single-copy BUSCOs (S)
+        835     Complete and duplicated BUSCOs (D)
+        444     Fragmented BUSCOs (F)
+        269     Missing BUSCOs (M)
+        4915    Total BUSCO groups searched
+
+# BUSCO version is: 3.0.2
+# The lineage dataset is: vertebrata_odb9 (Creation date: 2016-02-13, number of species: 65, number of BUSCOs: 2586)
+# To reproduce this run: python /N/soft/rhel7/busco/3.0.2/scripts/run_BUSCO.py -i TswallowmakerRun_SET3_Run3_2.fasta -o TswallowmakerRun_SET3_Run3_2_vertebrata -l vertebrata_odb9/ -m transcriptome -c 4
+#
+# Summarized benchmarking in BUSCO notation for file TswallowmakerRun_SET3_Run3_2.fasta
+# BUSCO was run in mode: transcriptome
+
+        C:89.3%[S:67.6%,D:21.7%],F:8.5%,M:2.2%,n:2586
+
+        2310    Complete BUSCOs (C)
+        1748    Complete and single-copy BUSCOs (S)
+        562     Complete and duplicated BUSCOs (D)
+        219     Fragmented BUSCOs (F)
+        57      Missing BUSCOs (M)
+        2586    Total BUSCO groups searched
+
+                                 Reference Genome     Modified Genome
+                                 ----------------     ---------------
+Total sequence length            1174359429           1174359429
+Number of genes                  22268                22268
+Number of mRNAs                  28304                28304
+Number of exons                  274051               274051
+Number of introns                245747               245747
+Number of CDS                    28304                28304
+Overlapping genes                2145                 2145
+Contained genes                  441                  441
+CDS: complete                    0                    18688
+CDS: start, no stop              0                    2633
+CDS: stop, no start              0                    4664
+CDS: no stop, no start           28304                2319
+Total gene length                330963641            330963641
+Total mRNA length                443505639            443505639
+Total exon length                55891840             55891840
+Total intron length              388105293            388105293
+Total CDS length                 42517977             42517977
+Shortest gene                    48                   48
+Shortest mRNA                    48                   48
+Shortest exon                    2                    2
+Shortest intron                  4                    4
+Shortest CDS                     6                    6
+Longest gene                     1787792              1787792
+Longest mRNA                     1787792              1787792
+Longest exon                     21606                21606
+Longest intron                   193879               193879
+Longest CDS                      29967                29967
+mean gene length                 14863                14863
+mean mRNA length                 15669                15669
+mean exon length                 204                  204
+mean intron length               1579                 1579
+mean CDS length                  1502                 1502
+% of genome covered by genes     28.2                 28.2
+% of genome covered by CDS       3.6                  3.6
+mean mRNAs per gene              1                    1
+mean exons per mRNA              10                   10
+mean introns per mRNA            9                    9
+</code></pre>
+</div>
+</body>
+
+</html>
